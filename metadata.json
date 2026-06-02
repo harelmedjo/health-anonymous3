@@ -1,0 +1,6 @@
+{
+  "name": "Health Anonymous",
+  "description": "A safe, anonymous health community to search and explore conditions with support groups and AI medical chat.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
