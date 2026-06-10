@@ -8,9 +8,12 @@ interface AdminPanelProps {
   onBack: () => void;
   onRefreshConditions: () => void;
   user?: UserAccount;
+  appBackgroundColor: string;
+  appTextColor: string;
+  onThemeColorChange: (color: string) => void;
 }
 
-export default function AdminPanel({ lang, onBack, onRefreshConditions, user }: AdminPanelProps) {
+export default function AdminPanel({ lang, onBack, onRefreshConditions, user, appBackgroundColor, appTextColor, onThemeColorChange }: AdminPanelProps) {
   const isFr = lang === "fr";
   const [isAuthenticated, setIsAuthenticated] = useState(user?.username?.toLowerCase() === "admin");
   const [username, setUsername] = useState("");
@@ -356,6 +359,40 @@ export default function AdminPanel({ lang, onBack, onRefreshConditions, user }: 
           <span className="material-symbols-outlined text-sm">arrow_back</span>
           <span>{isFr ? "Retourner à l'application" : "Exit Admin Mode"}</span>
         </button>
+      </div>
+
+      <div className="bg-white border border-gray-150 p-5 rounded-2xl shadow-xs mb-6">
+        <h3 className="text-sm font-bold text-gray-900 mb-3">
+          {isFr ? "Personnalisation du thème" : "Theme Personalization"}
+        </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={appBackgroundColor}
+              onChange={(e) => onThemeColorChange(e.target.value)}
+              className="w-12 h-12 p-0 rounded-xl border border-gray-200 cursor-pointer"
+              aria-label={isFr ? "Sélecteur de couleur de fond" : "Background color picker"}
+            />
+            <div>
+              <p className="text-xs text-gray-500">
+                {isFr
+                  ? "Définissez la couleur de fond de l'application pour votre session."
+                  : "Set the app background color for your session."}
+              </p>
+              <p className="text-xs font-semibold" style={{ color: appTextColor }}>
+                {isFr
+                  ? `Texte ${appTextColor === "#ffffff" ? "blanc" : "noir"}`
+                  : `Text ${appTextColor === "#ffffff" ? "white" : "black"}`}
+              </p>
+            </div>
+          </div>
+          <div className="text-xs text-gray-400">
+            {isFr
+              ? "Si le fond est clair, le texte devient noir. Si le fond est sombre, le texte devient blanc."
+              : "Light backgrounds use black text, dark backgrounds use white text."}
+          </div>
+        </div>
       </div>
 
       <AnimatePresence mode="wait">
@@ -976,7 +1013,8 @@ export default function AdminPanel({ lang, onBack, onRefreshConditions, user }: 
                           <th className="p-4">English Name</th>
                           <th className="p-4">Nom Français</th>
                           <th className="p-4">Category</th>
-                          <th className="p-4">Dosage Guidance</th>
+                          <th className="p-4">Dosage (EN)</th>
+                          <th className="p-4">Dosage (FR)</th>
                           <th className="p-4 text-center">Actions</th>
                         </tr>
                       </thead>
@@ -992,6 +1030,7 @@ export default function AdminPanel({ lang, onBack, onRefreshConditions, user }: 
                               </span>
                             </td>
                             <td className="p-4 text-slate-500 italic max-w-xs truncate">{m.dosageEn}</td>
+                            <td className="p-4 text-slate-500 italic max-w-xs truncate">{m.dosageFr}</td>
                             <td className="p-4 text-center space-x-2">
                               <button
                                 onClick={() => handleOpenEditMedForm(m)}

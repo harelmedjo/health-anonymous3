@@ -7,13 +7,16 @@ import ConfirmationModal from "./ConfirmationModal";
 interface ProfileViewProps {
   lang: Language;
   user: UserAccount;
+  appBackgroundColor: string;
+  appTextColor: string;
   onUpdateAlias: (newAlias: string) => void;
   onUpdateLanguage: (newLang: Language) => void;
+  onThemeColorChange: (color: string) => void;
   onSignOut: () => void;
   onEnterAdmin: () => void;
 }
 
-export default function ProfileView({ lang, user, onUpdateAlias, onUpdateLanguage, onSignOut, onEnterAdmin }: ProfileViewProps) {
+export default function ProfileView({ lang, user, appBackgroundColor, appTextColor, onUpdateAlias, onUpdateLanguage, onThemeColorChange, onSignOut, onEnterAdmin }: ProfileViewProps) {
   const isFr = lang === "fr";
   const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
 
@@ -87,6 +90,34 @@ export default function ProfileView({ lang, user, onUpdateAlias, onUpdateLanguag
                 >
                   Français
                 </button>
+              </div>
+            </div>
+
+            {/* Theme color picker */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-gray-500 block">
+                {isFr ? "Couleur de fond de l'application" : "App Background Color"}
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={appBackgroundColor}
+                  onChange={(e) => onThemeColorChange(e.target.value)}
+                  className="w-12 h-12 p-0 rounded-xl border border-gray-200 cursor-pointer"
+                  aria-label={isFr ? "Sélecteur de couleur de fond" : "Background color picker"}
+                />
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    {isFr
+                      ? "Choisissez une couleur de fond pour personnaliser votre application."
+                      : "Pick a background color to personalize the app experience."}
+                  </p>
+                  <p className="text-xs font-semibold" style={{ color: appTextColor }}>
+                    {isFr
+                      ? `Texte ${appTextColor === "#ffffff" ? "blanc" : "noir"}`
+                      : `Text ${appTextColor === "#ffffff" ? "white" : "black"}`}
+                  </p>
+                </div>
               </div>
             </div>
 

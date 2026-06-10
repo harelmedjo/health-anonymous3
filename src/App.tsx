@@ -27,6 +27,8 @@ export default function App() {
   const [privateMessageTargetPeer, setPrivateMessageTargetPeer] = useState<string | null>(null);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [unreadDmCount, setUnreadDmCount] = useState(0);
+  const [appBackgroundColor, setAppBackgroundColor] = useState("#F9F9FF");
+  const [appTextColor, setAppTextColor] = useState("#111C2D");
   const lastSeenDmCountRef = useRef(0);
   
   // Safe anonymous initial state
@@ -81,6 +83,37 @@ export default function App() {
       return () => clearInterval(interval);
     }
   }, [user.isRegistered]);
+
+  const getContrastColor = (hex: string) => {
+    const normalized = hex.replace(/^#/, "");
+    const fullHex = normalized.length === 3
+      ? normalized.split("").map((c) => c + c).join("")
+      : normalized;
+    const r = parseInt(fullHex.slice(0, 2), 16);
+    const g = parseInt(fullHex.slice(2, 4), 16);
+    const b = parseInt(fullHex.slice(4, 6), 16);
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness > 140 ? "#111111" : "#ffffff";
+  };
+
+  const handleThemeColorChange = (color: string) => {
+    const textColor = getContrastColor(color);
+    setAppBackgroundColor(color);
+    setAppTextColor(textColor);
+    localStorage.setItem("ha-app-theme-color", color);
+  };
+
+  useEffect(() => {
+    const savedColor = localStorage.getItem("ha-app-theme-color");
+    if (savedColor) {
+      handleThemeColorChange(savedColor);
+    }
+  }, []);
+
+  useEffect(() => {
+    document.body.style.backgroundColor = appBackgroundColor;
+    document.body.style.color = appTextColor;
+  }, [appBackgroundColor, appTextColor]);
 
   // Poll for new DMs so the badge updates even when not on the DMs tab
   useEffect(() => {
@@ -155,7 +188,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F9F9FF] text-[#111C2D] font-sans overflow-x-hidden flex flex-col justify-between">
+    <div className="min-h-screen font-sans overflow-x-hidden flex flex-col justify-between" style={{ backgroundColor: appBackgroundColor, color: appTextColor }}>
       {/* Dynamic Conditional Rendering */}
       <div className="flex-grow flex flex-col">
         <AnimatePresence mode="wait">
@@ -322,8 +355,11 @@ export default function App() {
                   <ProfileView 
                     lang={lang} 
                     user={user} 
+                    appBackgroundColor={appBackgroundColor}
+                    appTextColor={appTextColor}
                     onUpdateAlias={handleUpdateAlias} 
                     onUpdateLanguage={handleUpdateLanguage}
+                    onThemeColorChange={handleThemeColorChange}
                     onSignOut={handleSignOut}
                     onEnterAdmin={() => setView("admin")}
                   />
@@ -333,6 +369,9 @@ export default function App() {
                   <AdminPanel 
                     lang={lang}
                     user={user}
+                    appBackgroundColor={appBackgroundColor}
+                    appTextColor={appTextColor}
+                    onThemeColorChange={handleThemeColorChange}
                     onBack={() => setView("profile")}
                     onRefreshConditions={fetchConditions}
                   />
