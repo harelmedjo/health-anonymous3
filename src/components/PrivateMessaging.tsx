@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Language, PrivateMessage, DirectChat } from "../types";
 
+type PrivateMessageItem = PrivateMessage & { status?: "sending" | "error" };
+
 interface PrivateMessagingProps {
   lang: Language;
   currentAlias: string;
@@ -12,7 +14,7 @@ interface PrivateMessagingProps {
 export default function PrivateMessaging({ lang, currentAlias, initialPeerAlias, onBack }: PrivateMessagingProps) {
   const [chats, setChats] = useState<DirectChat[]>([]);
   const [activePeer, setActivePeer] = useState<string | null>(initialPeerAlias || null);
-  const [messages, setMessages] = useState<PrivateMessage[]>([]);
+  const [messages, setMessages] = useState<PrivateMessageItem[]>([]);
   const [text, setText] = useState("");
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
@@ -25,6 +27,8 @@ export default function PrivateMessaging({ lang, currentAlias, initialPeerAlias,
   const isFr = lang === "fr";
   const chatEndRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activePeerRef = useRef<string | null>(initialPeerAlias || null);
+  const fetchRequestRef = useRef(0);
 
   // Suggested bilingual quick responses
   const QUICK_RESPONSES = isFr 
@@ -47,16 +51,27 @@ export default function PrivateMessaging({ lang, currentAlias, initialPeerAlias,
 
   // Fetch messages between currentAlias and activePeer
   const fetchMessages = async (peer: string) => {
+    const requestId = fetchRequestRef.current + 1;
+    fetchRequestRef.current = requestId;
     setLoadingMsgs(true);
     try {
-      const res = await fetch(`/api/messages?user=${currentAlias}&peer=${peer}`);
-      if (res.ok) {
-        const data = await res.json();
-        setMessages(data);
+      const res = await fetch(`/api/messages?user=${encodeURIComponent(currentAlias)}&peer=${encodeURIComponent(peer)}`);
+      if (!res.ok) {
+        throw new Error("Unable to load private messages");
       }
-      setLoadingMsgs(false);
+      const data = await res.json();
+      if (requestId !== fetchRequestRef.current || activePeerRef.current !== peer) {
+        return;
+      }
+      setMessages((data as PrivateMessage[]).map((message) => ({ ...message })));
     } catch {
-      setLoadingMsgs(false);
+      if (requestId === fetchRequestRef.current) {
+        setMessages((prev) => prev);
+      }
+    } finally {
+      if (requestId === fetchRequestRef.current) {
+        setLoadingMsgs(false);
+      }
     }
   };
 
@@ -65,6 +80,7 @@ export default function PrivateMessaging({ lang, currentAlias, initialPeerAlias,
   }, [currentAlias]);
 
   useEffect(() => {
+    activePeerRef.current = activePeer;
     if (activePeer) {
       fetchMessages(activePeer);
       setIsBlocked(false);
@@ -77,45 +93,53 @@ export default function PrivateMessaging({ lang, currentAlias, initialPeerAlias,
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [activePeer]);
+  }, [activePeer, currentAlias]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleSendMessage = async (contentToSend: string) => {
-    if (!activePeer || !contentToSend.trim()) return;
+    if (!activePeer || (!contentToSend.trim() && !attachedMediaUrl)) return;
 
-    const mockId = Math.floor(Math.random() * 1000000).toString();
+    const optimisticId = `pending-${Date.now()}`;
     const chatUnionId = `${currentAlias}_${activePeer}`;
 
-    const newMsg: PrivateMessage = {
-      id: mockId,
+    const optimisticMsg: PrivateMessageItem = {
+      id: optimisticId,
       chatId: chatUnionId,
       senderAlias: currentAlias,
       recipientAlias: activePeer,
-      content: contentToSend,
+      content: contentToSend.trim(),
       timestamp: isFr ? "À l'instant" : "Just now",
-      mediaUrl: attachedMediaUrl || undefined
+      mediaUrl: attachedMediaUrl || undefined,
+      status: "sending"
     };
+
+    setMessages((prev) => [...prev, optimisticMsg]);
+    setText("");
+    setAttachedMediaUrl(null);
 
     try {
       const res = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newMsg)
+        body: JSON.stringify({
+          ...optimisticMsg,
+          id: optimisticId.replace("pending-", "")
+        })
       });
-      
+
       if (res.ok) {
-        setMessages((prev) => [...prev, newMsg]);
-        setText("");
-        setAttachedMediaUrl(null);
+        await fetchMessages(activePeer);
         await fetchChats();
       } else {
-        const errData = await res.json();
-        alert(errData.error || "Delivery blocked.");
+        const errData = await res.json().catch(() => null);
+        setMessages((prev) => prev.map((message) => message.id === optimisticId ? { ...message, status: "error" } : message));
+        alert(errData?.error || "Delivery blocked.");
       }
     } catch {
+      setMessages((prev) => prev.map((message) => message.id === optimisticId ? { ...message, status: "error" } : message));
       alert("Error reaching messaging server.");
     }
   };
@@ -308,6 +332,18 @@ export default function PrivateMessaging({ lang, currentAlias, initialPeerAlias,
                           <div className={`p-3 rounded-2xl max-w-sm space-y-1.5 shadow-xs ${
                             isMe ? "bg-primary text-white rounded-tr-xs" : "bg-white text-slate-800 rounded-tl-xs border border-slate-100"
                           }`}>
+                            {m.status === "sending" && (
+                              <div className="text-[10px] opacity-80 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[12px]">schedule</span>
+                                <span>{isFr ? "Envoi en cours..." : "Sending..."}</span>
+                              </div>
+                            )}
+                            {m.status === "error" && (
+                              <div className="text-[10px] opacity-80 flex items-center gap-1 text-red-200">
+                                <span className="material-symbols-outlined text-[12px]">error</span>
+                                <span>{isFr ? "Échec de l'envoi" : "Send failed"}</span>
+                              </div>
+                            )}
                             <p className="text-xs font-sans leading-relaxed break-words">{m.content}</p>
                             {m.mediaUrl && (
                               <div className="rounded-xl overflow-hidden max-w-[200px] border border-slate-200">
