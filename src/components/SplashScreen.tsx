@@ -73,6 +73,16 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
           Anonymous Health Support for Everyone
         </motion.p>
 
+        {/* Creator name */}
+        <motion.p 
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.5 }}
+          className="text-primary/60 font-semibold text-xs mt-4"
+        >
+          Created by: dang medjo harel
+        </motion.p>
+
         {/* Connection progress container */}
         <div className="w-full max-w-[200px] mt-16 space-y-3">
           {/* Progress bar scale */}

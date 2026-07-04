@@ -85,7 +85,29 @@ async function startServer() {
       res.json({ text: response.text });
     } catch (error: any) {
       console.error("Gemini API Error:", error);
-      res.status(500).json({ error: error?.message || "Internal server error" });
+      
+      // Provide specific error messages based on the error type
+      let errorMessage = "Internal server error";
+      let statusCode = 500;
+      
+      // Handle connection timeout errors
+      if (error?.cause?.code === 'UND_ERR_CONNECT_TIMEOUT' || error?.message?.includes('Connect Timeout')) {
+        errorMessage = "AI service connection timeout. Please check your internet connection and try again.";
+        statusCode = 503;
+      } else if (error?.status === 503) {
+        errorMessage = "AI service is currently overloaded. Please try again in a moment.";
+        statusCode = 503;
+      } else if (error?.status === 429) {
+        errorMessage = "Too many requests to AI service. Please wait a moment before trying again.";
+        statusCode = 429;
+      } else if (error?.status === 401) {
+        errorMessage = "AI service authentication failed. Please check server configuration.";
+        statusCode = 401;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      res.status(statusCode).json({ error: errorMessage });
     }
   });
 

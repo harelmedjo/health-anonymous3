@@ -571,10 +571,10 @@ export async function dbApprovePost(postId: string): Promise<void> {
 
     const notif: AppNotification = {
       id: notifId,
-      titleEn: `📢 Latest Approved Post`,
-      titleFr: `📢 Dernier message approuvé`,
-      contentEn: `New post by "${approvedPost.authorAlias}": "${truncated}"`,
-      contentFr: `Nouveau message par "${approvedPost.authorAlias}": "${truncated}"`,
+      titleEn: `✅ Your post was approved`,
+      titleFr: `✅ Votre publication a été approuvée`,
+      contentEn: `The administrator approved your publication: "${truncated}"`,
+      contentFr: `L'administrateur a validé votre publication : "${truncated}"`,
       timestamp: "Just now",
       isRead: false
     };
@@ -617,6 +617,7 @@ export async function dbGetComments(postId?: string): Promise<GroupComment[]> {
 
 export async function dbAddComment(comment: GroupComment): Promise<void> {
   const { pool: p, isPostgres: ip, memoryDb: md } = await getDb();
+
   if (ip && p) {
     await p.query(
       `INSERT INTO comments (id, post_id, author_alias, content, timestamp) 
@@ -624,12 +625,42 @@ export async function dbAddComment(comment: GroupComment): Promise<void> {
       [comment.id, comment.postId, comment.authorAlias, comment.content, comment.timestamp]
     );
     await p.query("UPDATE posts SET comments_count = comments_count + 1 WHERE id = $1", [comment.postId]);
+
+    const postRes = await p.query("SELECT author_alias FROM posts WHERE id = $1", [comment.postId]);
+    const postAuthorAlias = postRes.rows[0]?.author_alias as string | undefined;
+
+    if (postAuthorAlias && postAuthorAlias.toLowerCase() !== comment.authorAlias.toLowerCase()) {
+      const notif: AppNotification = {
+        id: `notif_comment_${Date.now()}`,
+        titleEn: `💬 New reply on a post`,
+        titleFr: `💬 Nouvelle réponse à une publication`,
+        contentEn: `A new reply was posted on a conversation that matters to you.`,
+        contentFr: `Une nouvelle réponse a été publiée dans une conversation qui vous concerne.`,
+        timestamp: "Just now",
+        isRead: false
+      };
+      await dbAddNotification(notif);
+    }
     return;
   }
+
   md.comments.push(comment);
   const post = md.posts.find(pos => pos.id === comment.postId);
   if (post) {
     post.commentsCount += 1;
+  }
+
+  if (post && post.authorAlias?.toLowerCase() !== comment.authorAlias.toLowerCase()) {
+    const notif: AppNotification = {
+      id: `notif_comment_${Date.now()}`,
+      titleEn: `💬 New reply on a post`,
+      titleFr: `💬 Nouvelle réponse à une publication`,
+      contentEn: `A new reply was posted on a conversation that matters to you.`,
+      contentFr: `Une nouvelle réponse a été publiée dans une conversation qui vous concerne.`,
+      timestamp: "Just now",
+      isRead: false
+    };
+    await dbAddNotification(notif);
   }
 }
 

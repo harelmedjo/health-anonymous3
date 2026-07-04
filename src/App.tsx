@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Language, View, UserAccount, Condition } from "./types";
 import { CONDITIONS, generateAnonymousAlias } from "./data";
+import { getNewNotifications, requestBrowserNotificationPermission, showBrowserNotification } from "./notifications";
 
 // Component imports
 import SplashScreen from "./components/SplashScreen";
@@ -30,6 +31,8 @@ export default function App() {
   const [appBackgroundColor, setAppBackgroundColor] = useState("#F9F9FF");
   const [appTextColor, setAppTextColor] = useState("#111C2D");
   const lastSeenDmCountRef = useRef(0);
+  const lastSeenNotificationIdsRef = useRef<Set<string>>(new Set());
+  const hasInitializedNotificationsRef = useRef(false);
   
   // Safe anonymous initial state
   const [user, setUser] = useState<UserAccount>({
@@ -60,8 +63,19 @@ export default function App() {
       const res = await fetch("/api/notifications");
       if (res.ok) {
         const list = await res.json();
-        const unread = list.filter((n: any) => !n.isRead).length;
+        const unreadNotifications = list.filter((n: any) => !n.isRead);
+        const unread = unreadNotifications.length;
         setUnreadNotificationsCount(unread);
+
+        if (hasInitializedNotificationsRef.current) {
+          const newNotifications = getNewNotifications(lastSeenNotificationIdsRef.current, unreadNotifications);
+          newNotifications.forEach((notification: any) => {
+            showBrowserNotification(notification, lang);
+          });
+        }
+
+        lastSeenNotificationIdsRef.current = new Set(unreadNotifications.map((notification: any) => notification.id));
+        hasInitializedNotificationsRef.current = true;
       }
     } catch (e) {
       console.warn("Unread check issues:", e);
@@ -78,11 +92,12 @@ export default function App() {
 
   useEffect(() => {
     if (user.isRegistered) {
+      void requestBrowserNotificationPermission();
       fetchUnreadNotifications();
       const interval = setInterval(fetchUnreadNotifications, 7000);
       return () => clearInterval(interval);
     }
-  }, [user.isRegistered]);
+  }, [user.isRegistered, lang]);
 
   const getContrastColor = (hex: string) => {
     const normalized = hex.replace(/^#/, "");

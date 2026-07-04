@@ -70,7 +70,8 @@ export default function AIChatView({ lang, initialQuery }: AIChatViewProps) {
       });
 
       if (!res.ok) {
-        throw new Error("Failed to contact secure pipeline");
+        const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(errorData.error || "Failed to contact secure pipeline");
       }
 
       const data = await res.json();
@@ -86,14 +87,21 @@ export default function AIChatView({ lang, initialQuery }: AIChatViewProps) {
       ]);
     } catch (err: any) {
       console.error(err);
+      let errorText = isFr 
+        ? "Erreur de connexion avec le serveur de santé sécurisé. Veuillez réessayer." 
+        : "Connection error with secure health servers. Please re-submit your concern.";
+      
+      // If we have a more specific error message from the server, use it
+      if (err?.message && err.message !== "Failed to contact secure pipeline") {
+        errorText = err.message;
+      }
+      
       setMessages((prev) => [
         ...prev,
         {
           id: `err-${Date.now()}`,
           sender: "bot",
-          text: isFr 
-            ? "Erreur de connexion avec le serveur de santé sécurisé. Veuillez réessayer." 
-            : "Connection error with secure health servers. Please re-submit your concern.",
+          text: errorText,
           timestamp: new Date()
         }
       ]);
