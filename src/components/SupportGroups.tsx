@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Language, Condition, GroupPost, GroupComment } from "../types";
-import { generateAnonymousAlias } from "../data";
+import { canSubmitContent } from "../contentUtils";
 
 interface SupportGroupsProps {
   lang: Language;
@@ -17,9 +17,12 @@ export default function SupportGroups({ lang, selectedConditionId, onClearSelect
   const [comments, setComments] = useState<GroupComment[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(selectedConditionId);
   const [newPostContent, setNewPostContent] = useState("");
+  const [newPostImageUrl, setNewPostImageUrl] = useState<string | null>(null);
   const [selectedPostComments, setSelectedPostComments] = useState<string | null>(null);
   const [newCommentContent, setNewCommentContent] = useState("");
+  const [newCommentImageUrl, setNewCommentImageUrl] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState("");
+  const [actionMenuPostId, setActionMenuPostId] = useState<string | null>(null);
 
   const isFr = lang === "fr";
 
@@ -55,9 +58,26 @@ export default function SupportGroups({ lang, selectedConditionId, onClearSelect
   const activeGroup = (conditions || []).find((c) => c.id === activeGroupId);
   const filteredPosts = posts; // Server returns filtered list by default
 
+  const handleImageSelection = async (event: React.ChangeEvent<HTMLInputElement>, target: "post" | "comment") => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string | null;
+      if (target === "post") {
+        setNewPostImageUrl(result);
+      } else {
+        setNewCommentImageUrl(result);
+      }
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  };
+
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPostContent.trim() || !activeGroupId) return;
+    if (!activeGroupId || !canSubmitContent(newPostContent, newPostImageUrl)) return;
 
     const newPost: GroupPost = {
       id: `p-${Date.now()}`,
@@ -67,7 +87,8 @@ export default function SupportGroups({ lang, selectedConditionId, onClearSelect
       timestamp: isFr ? "À l'instant" : "Just now",
       likes: 0,
       commentsCount: 0,
-      status: "pending"
+      status: "pending",
+      imageUrl: newPostImageUrl || undefined
     };
 
     try {
@@ -80,6 +101,7 @@ export default function SupportGroups({ lang, selectedConditionId, onClearSelect
         const savedPost = { ...newPost, status: "pending" as const };
         setPosts((prev) => [savedPost, ...prev]);
         setNewPostContent("");
+        setNewPostImageUrl(null);
         setSuccessMessage(
           isFr 
             ? "Votre publication a été transmise en toute sécurité et est en attente d'approbation d'un modérateur." 
@@ -107,14 +129,15 @@ export default function SupportGroups({ lang, selectedConditionId, onClearSelect
 
   const handleCreateComment = async (e: React.FormEvent, postId: string) => {
     e.preventDefault();
-    if (!newCommentContent.trim()) return;
+    if (!canSubmitContent(newCommentContent, newCommentImageUrl)) return;
 
     const newComm: GroupComment = {
       id: `c-${Date.now()}`,
       postId: postId,
       authorAlias: anonymousAlias,
       content: newCommentContent,
-      timestamp: isFr ? "À l'instant" : "Just now"
+      timestamp: isFr ? "À l'instant" : "Just now",
+      imageUrl: newCommentImageUrl || undefined
     };
 
     try {
@@ -126,6 +149,7 @@ export default function SupportGroups({ lang, selectedConditionId, onClearSelect
       if (res.ok) {
         setComments((prev) => [...prev, newComm]);
         setNewCommentContent("");
+        setNewCommentImageUrl(null);
         setPosts((prev) =>
           prev.map((p) => (p.id === postId ? { ...p, commentsCount: p.commentsCount + 1 } : p))
         );
@@ -253,12 +277,18 @@ export default function SupportGroups({ lang, selectedConditionId, onClearSelect
                 onChange={(e) => setNewPostContent(e.target.value)}
                 placeholder={isFr ? `Partagez vos conseils, recettes ou préoccupations de manière anonyme dans ce groupe...` : `Share advice, symptoms summaries or comfort anonymously in this room...`}
                 className="w-full text-xs sm:text-sm bg-slate-50 border border-gray-100 rounded-xl p-3 focus:ring-1 focus:ring-primary focus:border-primary outline-hidden min-h-[70px] resize-none"
-                required
               />
-              <div className="flex justify-between items-center bg-transparent">
-                <p className="text-[10px] text-gray-400 leading-none">
-                  🔐 {isFr ? "Votre adresse IP et votre e-mail sont totalement masqués." : "Your IP and primary credentials are never stored."}
-                </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-transparent">
+                <div className="flex items-center gap-2">
+                  <label className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-slate-50 px-3 py-1.5 text-[10px] font-semibold text-gray-600 cursor-pointer hover:bg-slate-100">
+                    <span className="material-symbols-outlined text-sm">image</span>
+                    <span>{isFr ? "Ajouter une image" : "Add image"}</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={(event) => handleImageSelection(event, "post")} />
+                  </label>
+                  <p className="text-[10px] text-gray-400 leading-none">
+                    🔐 {isFr ? "Votre adresse IP et votre e-mail sont totalement masqués." : "Your IP and primary credentials are never stored."}
+                  </p>
+                </div>
                 <button
                   type="submit"
                   className="px-5 py-2 bg-primary text-white text-xs font-bold rounded-full hover:bg-primary-container transition-all cursor-pointer shadow-xs active:scale-95"
@@ -266,6 +296,14 @@ export default function SupportGroups({ lang, selectedConditionId, onClearSelect
                   {isFr ? "Publier de manière anonyme" : "Post Anonymously"}
                 </button>
               </div>
+              {newPostImageUrl && (
+                <div className="rounded-xl overflow-hidden border border-gray-200 bg-slate-50 p-2">
+                  <img src={newPostImageUrl} alt="Selected upload preview" className="max-h-32 w-full object-cover rounded-lg" />
+                  <button type="button" onClick={() => setNewPostImageUrl(null)} className="mt-2 text-[10px] text-red-500 font-semibold cursor-pointer">
+                    {isFr ? "Supprimer l'image" : "Remove image"}
+                  </button>
+                </div>
+              )}
             </form>
 
             {successMessage && (
@@ -325,9 +363,53 @@ export default function SupportGroups({ lang, selectedConditionId, onClearSelect
                         <span>{post.timestamp}</span>
                       </div>
 
-                      <p className="text-xs sm:text-sm text-gray-700 leading-relaxed min-h-[30px] font-sans">
-                        {post.content}
-                      </p>
+                      {post.content && (
+                        <p className="text-xs sm:text-sm text-gray-700 leading-relaxed min-h-[30px] font-sans">
+                          {post.content}
+                        </p>
+                      )}
+                      {post.imageUrl && (
+                        <div className="rounded-xl overflow-hidden border border-gray-200 bg-slate-50 p-2">
+                          <img src={post.imageUrl} alt="Shared media" className="max-h-48 w-full object-cover rounded-lg" />
+                        </div>
+                      )}
+
+                      {post.status === "approved" && post.authorAlias === anonymousAlias && (
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setActionMenuPostId(actionMenuPostId === post.id ? null : post.id)}
+                            className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-3 py-1.5 text-[10px] font-semibold text-teal-700 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-sm">swap_horiz</span>
+                            <span>{isFr ? "Continuer" : "Continue"}</span>
+                          </button>
+                          {actionMenuPostId === post.id && (
+                            <div className="absolute left-0 top-full mt-2 z-10 flex flex-col rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPostComments(post.id);
+                                  setActionMenuPostId(null);
+                                }}
+                                className="rounded-lg px-3 py-2 text-left text-[10px] font-semibold text-gray-700 hover:bg-slate-50 cursor-pointer"
+                              >
+                                {isFr ? "Répondre publiquement" : "Reply publicly"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onOpenDirectChat?.(post.authorAlias);
+                                  setActionMenuPostId(null);
+                                }}
+                                className="rounded-lg px-3 py-2 text-left text-[10px] font-semibold text-gray-700 hover:bg-slate-50 cursor-pointer"
+                              >
+                                {isFr ? "Passer en privé" : "Continue privately"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Interactive bar for post */}
                       <div className="pt-2 border-t border-gray-50 flex items-center gap-4 text-xs text-gray-500">
@@ -369,9 +451,16 @@ export default function SupportGroups({ lang, selectedConditionId, onClearSelect
                                     </div>
                                     <span>{comm.timestamp}</span>
                                   </div>
-                                  <p className="text-gray-700 leading-relaxed text-xs">
-                                    {comm.content}
-                                  </p>
+                                  {comm.content && (
+                                    <p className="text-gray-700 leading-relaxed text-xs">
+                                      {comm.content}
+                                    </p>
+                                  )}
+                                  {comm.imageUrl && (
+                                    <div className="rounded-lg overflow-hidden border border-gray-200 bg-white p-1.5 mt-1">
+                                      <img src={comm.imageUrl} alt="Reply media" className="max-h-32 w-full object-cover rounded-md" />
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -392,8 +481,11 @@ export default function SupportGroups({ lang, selectedConditionId, onClearSelect
                               onChange={(e) => setNewCommentContent(e.target.value)}
                               placeholder={isFr ? "Ajouter une réponse anonyme..." : "Add anonymous reply..."}
                               className="flex-1 text-xs bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-primary focus:border-primary outline-hidden"
-                              required
                             />
+                            <label className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white p-1.5 text-gray-500 cursor-pointer">
+                              <span className="material-symbols-outlined text-sm">image</span>
+                              <input type="file" accept="image/*" className="hidden" onChange={(event) => handleImageSelection(event, "comment")} />
+                            </label>
                             <button
                               type="submit"
                               className="bg-primary text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-primary-container transition-all cursor-pointer"
@@ -401,6 +493,14 @@ export default function SupportGroups({ lang, selectedConditionId, onClearSelect
                               {isFr ? "Répondre" : "Reply"}
                             </button>
                           </form>
+                          {newCommentImageUrl && (
+                            <div className="mt-2 rounded-lg border border-gray-200 bg-white p-2">
+                              <img src={newCommentImageUrl} alt="Selected reply preview" className="max-h-24 w-full object-cover rounded-md" />
+                              <button type="button" onClick={() => setNewCommentImageUrl(null)} className="mt-1 text-[10px] text-red-500 font-semibold cursor-pointer">
+                                {isFr ? "Supprimer l'image" : "Remove image"}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

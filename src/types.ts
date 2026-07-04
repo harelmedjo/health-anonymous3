@@ -73,6 +73,7 @@ export interface GroupPost {
   likes: number;
   commentsCount: number;
   status?: "pending" | "approved" | "rejected";
+  imageUrl?: string;
 }
 
 export interface GroupComment {
@@ -81,6 +82,7 @@ export interface GroupComment {
   authorAlias: string;
   content: string;
   timestamp: string;
+  imageUrl?: string;
 }
 
 export interface UserAccount {

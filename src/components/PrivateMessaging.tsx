@@ -20,7 +20,7 @@ export default function PrivateMessaging({ lang, currentAlias, initialPeerAlias,
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [isReported, setIsReported] = useState(false);
-  const [simulatedMediaAttached, setSimulatedMediaAttached] = useState<string | null>(null);
+  const [attachedMediaUrl, setAttachedMediaUrl] = useState<string | null>(null);
 
   const isFr = lang === "fr";
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -96,7 +96,7 @@ export default function PrivateMessaging({ lang, currentAlias, initialPeerAlias,
       recipientAlias: activePeer,
       content: contentToSend,
       timestamp: isFr ? "À l'instant" : "Just now",
-      mediaUrl: simulatedMediaAttached || undefined
+      mediaUrl: attachedMediaUrl || undefined
     };
 
     try {
@@ -109,7 +109,7 @@ export default function PrivateMessaging({ lang, currentAlias, initialPeerAlias,
       if (res.ok) {
         setMessages((prev) => [...prev, newMsg]);
         setText("");
-        setSimulatedMediaAttached(null);
+        setAttachedMediaUrl(null);
         await fetchChats();
       } else {
         const errData = await res.json();
@@ -163,13 +163,16 @@ export default function PrivateMessaging({ lang, currentAlias, initialPeerAlias,
     }
   };
 
-  const simulateMediaAttach = () => {
-    const mockFiles = [
-      "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400&q=80",
-      "https://images.unsplash.com/photo-1550572017-edd951b55104?w=400&q=80"
-    ];
-    const picked = mockFiles[Math.floor(Math.random() * mockFiles.length)];
-    setSimulatedMediaAttached(picked);
+  const handleImageSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAttachedMediaUrl(reader.result as string | null);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
   };
 
   return (
@@ -349,18 +352,14 @@ export default function PrivateMessaging({ lang, currentAlias, initialPeerAlias,
                     }}
                     className="flex items-center gap-2"
                   >
-                    {/* Simulated Attachment Button */}
-                    <button
-                      type="button"
-                      onClick={simulateMediaAttach}
-                      className={`w-9.5 h-9.5 flex items-center justify-center rounded-xl transition-colors cursor-pointer ${
-                        simulatedMediaAttached ? "bg-yellow-50 text-yellow-600" : "bg-slate-50 hover:bg-slate-100 text-slate-500"
-                      }`}
-                    >
+                    <label className={`w-9.5 h-9.5 flex items-center justify-center rounded-xl transition-colors cursor-pointer ${
+                      attachedMediaUrl ? "bg-yellow-50 text-yellow-600" : "bg-slate-50 hover:bg-slate-100 text-slate-500"
+                    }`}>
                       <span className="material-symbols-outlined text-lg">
-                        {simulatedMediaAttached ? "image" : "attach_file"}
+                        {attachedMediaUrl ? "image" : "attach_file"}
                       </span>
-                    </button>
+                      <input type="file" accept="image/*" className="hidden" onChange={handleImageSelection} />
+                    </label>
 
                     <input
                       type="text"
@@ -372,19 +371,19 @@ export default function PrivateMessaging({ lang, currentAlias, initialPeerAlias,
 
                     <button
                       type="submit"
-                      disabled={!text.trim() && !simulatedMediaAttached}
+                      disabled={!text.trim() && !attachedMediaUrl}
                       className="w-10 h-10 bg-primary hover:bg-primary-container text-white rounded-xl flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                     >
                       <span className="material-symbols-outlined text-lg">send</span>
                     </button>
                   </form>
-                  {simulatedMediaAttached && (
+                  {attachedMediaUrl && (
                     <div className="mt-2 flex items-center justify-between p-2 bg-yellow-50/50 border border-yellow-100 rounded-lg text-[10px] text-yellow-800">
                       <span className="flex items-center gap-1">
                         <span className="material-symbols-outlined text-xs">photo</span>
                         <span>{isFr ? "Image cryptée jointe" : "Encrypted image attached"}</span>
                       </span>
-                      <button onClick={() => setSimulatedMediaAttached(null)} className="text-red-500 font-bold hover:underline cursor-pointer">
+                      <button onClick={() => setAttachedMediaUrl(null)} className="text-red-500 font-bold hover:underline cursor-pointer">
                         {isFr ? "Supprimer" : "Remove"}
                       </button>
                     </div>

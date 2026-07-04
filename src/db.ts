@@ -231,8 +231,10 @@ async function setupPostgresTables() {
     // Apply migrations / dynamic alterations for Posts Table
     try {
       await pool.query("ALTER TABLE posts ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending'");
+      await pool.query("ALTER TABLE posts ADD COLUMN IF NOT EXISTS image_url TEXT");
+      await pool.query("ALTER TABLE comments ADD COLUMN IF NOT EXISTS image_url TEXT");
     } catch (colErr: any) {
-      console.warn("Could not alter posts table to add status column:", colErr.message);
+      console.warn("Could not alter posts/comments table for image support:", colErr.message);
     }
 
     // Populate default conditions if table is empty
@@ -419,7 +421,8 @@ export async function dbGetPosts(conditionId?: string | null, includePending = f
       timestamp: row.timestamp,
       likes: row.likes,
       commentsCount: row.comments_count,
-      status: row.status || 'approved'
+      status: row.status || 'approved',
+      imageUrl: row.image_url || undefined
     }));
   }
 
@@ -444,9 +447,9 @@ export async function dbAddPost(post: GroupPost): Promise<void> {
 
   if (ip && p) {
     await p.query(
-      `INSERT INTO posts (id, condition_id, author_alias, content, timestamp, likes, comments_count, status) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [postObj.id, postObj.conditionId, postObj.authorAlias, postObj.content, postObj.timestamp, postObj.likes, postObj.commentsCount, postObj.status]
+      `INSERT INTO posts (id, condition_id, author_alias, content, timestamp, likes, comments_count, status, image_url) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [postObj.id, postObj.conditionId, postObj.authorAlias, postObj.content, postObj.timestamp, postObj.likes, postObj.commentsCount, postObj.status, postObj.imageUrl || null]
     );
   } else {
     md.posts.unshift(postObj);
@@ -606,7 +609,8 @@ export async function dbGetComments(postId?: string): Promise<GroupComment[]> {
       postId: row.post_id,
       authorAlias: row.author_alias,
       content: row.content,
-      timestamp: row.timestamp
+      timestamp: row.timestamp,
+      imageUrl: row.image_url || undefined
     }));
   }
   if (postId) {
@@ -620,9 +624,9 @@ export async function dbAddComment(comment: GroupComment): Promise<void> {
 
   if (ip && p) {
     await p.query(
-      `INSERT INTO comments (id, post_id, author_alias, content, timestamp) 
-       VALUES ($1, $2, $3, $4, $5)`,
-      [comment.id, comment.postId, comment.authorAlias, comment.content, comment.timestamp]
+      `INSERT INTO comments (id, post_id, author_alias, content, timestamp, image_url) 
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [comment.id, comment.postId, comment.authorAlias, comment.content, comment.timestamp, comment.imageUrl || null]
     );
     await p.query("UPDATE posts SET comments_count = comments_count + 1 WHERE id = $1", [comment.postId]);
 
